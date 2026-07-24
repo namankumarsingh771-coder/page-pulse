@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Page Pulse — URL Auditor</title>
+    <style>
+        :root {
+            --bg: #0b0f14; --card: #131a22; --border: #232d38;
+            --text: #e7edf3; --muted: #8ea0b3; --accent: #4f8cff;
+            --good: #35c98f; --bad: #ff6b6b; --warn: #ffb454;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column;
+        }
+        main { flex: 1; max-width: 720px; margin: 0 auto; padding: 48px 20px; width: 100%; }
+        h1 { font-size: 28px; margin-bottom: 4px; }
+        .subtitle { color: var(--muted); margin-bottom: 32px; font-size: 14px; }
+        .input-row { display: flex; gap: 8px; }
+        input[type="text"] {
+            flex: 1; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--border);
+            background: var(--card); color: var(--text); font-size: 15px; outline: none;
+        }
+        input[type="text"]:focus { border-color: var(--accent); }
+        button {
+            padding: 14px 22px; border-radius: 10px; border: none; background: var(--accent);
+            color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
+        }
+        button:hover { opacity: 0.88; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #status { margin-top: 16px; font-size: 14px; color: var(--muted); min-height: 20px; }
+        #status.error { color: var(--bad); }
+        .report { margin-top: 24px; display: none; }
+        .report.visible { display: block; }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 16px; }
+        .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+        .stat .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+        .stat .value { font-size: 20px; font-weight: 700; }
+        .value.good { color: var(--good); }
+        .value.bad { color: var(--bad); }
+        .value.warn { color: var(--warn); }
+        .detail-block { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-top: 12px; }
+        .detail-block .label { font-size: 12px; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+        .detail-block .value { font-size: 15px; line-height: 1.5; word-break: break-word; }
+        .muted-inline { color: var(--muted); font-style: italic; }
+        footer { text-align: center; padding: 20px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--border); }
+        footer a { color: var(--accent); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<main>
+    <h1>Page Pulse</h1>
+    <p class="subtitle">Paste any URL to get an instant health report — status, speed, SEO basics, and accessibility gaps.</p>
+
+    <div class="input-row">
+        <input type="text" id="urlInput" placeholder="https://example.com" autocomplete="off" />
+        <button id="auditBtn">Audit</button>
+    </div>
+
+    <div id="status"></div>
+
+    <div class="report" id="report">
+        <div class="stat-grid">
+            <div class="stat"><div class="label">HTTP Status</div><div class="value" id="stat-status">—</div></div>
+            <div class="stat"><div class="label">Response Time</div><div class="value" id="stat-time">—</div></div>
+            <div class="stat"><div class="label">H1 Tags</div><div class="value" id="stat-h1">—</div></div>
+            <div class="stat"><div class="label">Word Count</div><div class="value" id="stat-words">—</div></div>
+            <div class="stat"><div class="label">Total Images</div><div class="value" id="stat-images">—</div></div>
+            <div class="stat"><div class="label">Missing Alt Text</div><div class="value" id="stat-alt">—</div></div>
+        </div>
+
+        <div class="detail-block"><div class="label">Page Title</div><div class="value" id="detail-title">—</div></div>
+        <div class="detail-block"><div class="label">Meta Description</div><div class="value" id="detail-desc">—</div></div>
+    </div>
+</main>
+
+<footer>
+    Built for Digital Heroes Training Task —
+    <a href="https://digitalheroesco.com" target="_blank" rel="noopener">digitalheroesco.com</a>
+</footer>
+
+<script>
+    const urlInput = document.getElementById('urlInput');
+    const auditBtn = document.getElementById('auditBtn');
+    const statusEl = document.getElementById('status');
+    const reportEl = document.getElementById('report');
+
+    function setStatus(msg, isError = false) {
+        statusEl.textContent = msg;
+        statusEl.className = isError ? 'error' : '';
+    }
+
+    function fmtMs(ms) { return ms == null ? '—' : `${ms} ms`; }
+
+    function classify(count, goodMax, warnMax) {
+        if (count <= goodMax) return 'good';
+        if (count <= warnMax) return 'warn';
+        return 'bad';
+    }
+
+    async function runAudit() {
+        const url = urlInput.value.trim();
+        if (!url) { setStatus('Enter a URL first.', true); return; }
+
+        auditBtn.disabled = true;
+        reportEl.classList.remove('visible');
+        setStatus('Auditing…');
+
+        try {
+            const res = await fetch('/audit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                setStatus(data.message || 'Something went wrong.', true);
+                auditBtn.disabled = false;
+                return;
+            }
+
+            setStatus(`Done in ${fmtMs(data.responseTimeMs)}.`);
+
+            document.getElementById('stat-status').textContent = data.httpStatus;
+            document.getElementById('stat-status').className = 'value ' + (data.httpStatus < 400 ? 'good' : 'bad');
+
+            document.getElementById('stat-time').textContent = fmtMs(data.responseTimeMs);
+
+            document.getElementById('stat-h1').textContent = data.h1Count;
+            document.getElementById('stat-h1').className = 'value ' + (data.h1Count === 1 ? 'good' : 'warn');
+
+            document.getElementById('stat-words').textContent = data.wordCount.toLocaleString();
+            document.getElementById('stat-images').textContent = data.totalImages;
+
+            document.getElementById('stat-alt').textContent = data.imagesMissingAlt;
+            document.getElementById('stat-alt').className = 'value ' + classify(data.imagesMissingAlt, 0, 3);
+
+            document.getElementById('detail-title').innerHTML =
+                data.title ? escapeHtml(data.title) : '<span class="muted-inline">No title found</span>';
+
+            document.getElementById('detail-desc').innerHTML =
+                data.metaDescription ? escapeHtml(data.metaDescription) : '<span class="muted-inline">No meta description found</span>';
+
+            reportEl.classList.add('visible');
+        } catch (err) {
+            setStatus('Network error — could not reach the server.', true);
+        } finally {
+            auditBtn.disabled = false;
+        }
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    auditBtn.addEventListener('click', runAudit);
+    urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') runAudit(); });
+</script>
+
+</body>
+</html>
