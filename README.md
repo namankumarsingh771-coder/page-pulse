@@ -1,3 +1,6 @@
+I used Claude to scaffold the initial Express server, frontend, and error-handling logic for Task A, since I wanted to move fast on getting a working version up. For Task B, I used it to help me think through how to make the parsing logic testable — it suggested extracting the HTML-parsing code into its own module so it could be tested without needing a live network call, which I hadn't considered initially. I wrote and reviewed the actual test cases myself, ran them locally to confirm they passed, and caught and fixed an incorrect word-count assertion along the way.
+
+
 # Page Pulse
 
 A small web tool that audits any URL — returns HTTP status, response time, page title, meta description, H1 count, images missing alt text, and word count.
