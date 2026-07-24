@@ -1,28 +1,13 @@
 const express = require('express');
 const axios = require('axios');
-const cheerio = require('cheerio');
 const path = require('path');
+const { isValidUrl, parsePage } = require('./lib/parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-
-function isValidUrl(str) {
-    try {
-        const u = new URL(str);
-        return u.protocol === 'http:' || u.protocol === 'https:';
-    } catch {
-        return false;
-    }
-}
-
-function countWords(text) {
-    const trimmed = text.trim();
-    if (!trimmed) return 0;
-    return trimmed.split(/\s+/).length;
-}
 
 app.post('/audit', async (req, res) => {
     const { url } = req.body || {};
@@ -58,36 +43,13 @@ app.post('/audit', async (req, res) => {
             });
         }
 
-        const $ = cheerio.load(response.data);
-
-        const title = $('title').first().text().trim() || null;
-        const metaDescription =
-            $('meta[name="description"]').attr('content') ||
-            $('meta[property="og:description"]').attr('content') ||
-            null;
-
-        const h1Count = $('h1').length;
-
-        const images = $('img');
-        let imagesMissingAlt = 0;
-        images.each((_, el) => {
-            const alt = $(el).attr('alt');
-            if (alt === undefined || alt.trim() === '') imagesMissingAlt++;
-        });
-
-        const bodyText = $('body').text();
-        const wordCount = countWords(bodyText);
+        const report = parsePage(response.data);
 
         return res.status(200).json({
             url,
             httpStatus: response.status,
             responseTimeMs: responseTime,
-            title,
-            metaDescription,
-            h1Count,
-            totalImages: images.length,
-            imagesMissingAlt,
-            wordCount
+            ...report
         });
     } catch (err) {
         const responseTime = Date.now() - start;
